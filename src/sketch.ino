@@ -1,82 +1,124 @@
 #include <SoftwareSerial.h>
+#include <LX16Servo.h>
 
-#define SERVO_COUNT 6           // Number of servos
-#define SERVO_BAUDRATE 115200   // Most serial servos use 100000 or 115200
+// Define the serial bus (TX, RX) for SoftwareSerial
+SoftwareSerial servoBus(10, 11); // RX, TX (connect only TX to servo signal)
 
-// Connect TX to Servo Controller's RX
-SoftwareSerial servoSerial(10, 11); 
-
-int servoIDs[SERVO_COUNT] = {1, 2, 3, 4, 5, 6}; // Servo IDs
-
-// Converts angle to position (0° to 240° maps to 0-1000 for SC/ST servos)
-int angleToPosition(float angle) {
-  return (int)(angle / 240.0 * 1000.0);
-}
-
-// Send move command to one servo
-void moveServo(int id, int position, int time = 500) {
-  byte cmd[10];
-  cmd[0] = 0x55;
-  cmd[1] = 0x55;
-  cmd[2] = id;
-  cmd[3] = 7;         // Length of following bytes
-  cmd[4] = 1;         // CMD: Write position
-  cmd[5] = position & 0xFF;
-  cmd[6] = (position >> 8) & 0xFF;
-  cmd[7] = time & 0xFF;
-  cmd[8] = (time >> 8) & 0xFF;
-  cmd[9] = 0;         // Checksum
-
-  // Compute checksum: ~(ID + LEN + CMD + PARAMS)
-  for (int i = 2; i <= 8; i++) {
-    cmd[9] += cmd[i];
-  }
-  cmd[9] = ~cmd[9];
-
-  // Send command
-  for (int i = 0; i < 10; i++) {
-    servoSerial.write(cmd[i]);
-  }
-}
-
-// Move all servos to specified angles
-void moveAllServos(float angles[]) {
-  for (int i = 0; i < SERVO_COUNT; i++) {
-    int pos = angleToPosition(angles[i]);
-    moveServo(servoIDs[i], pos, 500); // 500ms movement time
-  }
-}
+// Create servo instances
+LX16Servo servo1;
+LX16Servo servo2;
 
 void setup() {
-  servoSerial.begin(SERVO_BAUDRATE);
-  Serial.begin(9600);  // Start serial communication for input
-  delay(500); // Wait for servos to initialize
+  Serial.begin(9600);        // For user input via Serial Monitor
+  servoBus.begin(115200);    // Serial bus communication with servos
 
-  Serial.println("Ready to receive angles.");
+  // Attach servos to the bus and set their IDs
+  servo1.attach(1, servoBus); // ID 1
+  servo2.attach(2, servoBus); // ID 2
+
+  Serial.println("Ready! Enter angles like 90,45");
 }
 
 void loop() {
-  // Check if data is available on Serial input
-  if (Serial.available() > 0) {
-    String input = Serial.readStringUntil('\n');  // Read input as a string
-    
-    // Parse the input into an array of floats
-    float angles[SERVO_COUNT];
-    int startIndex = 0;
-    for (int i = 0; i < SERVO_COUNT; i++) {
-      int endIndex = input.indexOf(',', startIndex);
-      if (endIndex == -1) {
-        endIndex = input.length();
-      }
-      
-      String angleStr = input.substring(startIndex, endIndex);
-      angles[i] = angleStr.toFloat();  // Convert string to float and store in angles array
-      
-      startIndex = endIndex + 1;
+  if (Serial.available()) {
+    String input = Serial.readStringUntil('\n');
+    input.trim(); // Remove spaces/newlines
+
+    int commaIndex = input.indexOf(',');
+
+    if (commaIndex != -1) {
+      int angle1 = input.substring(0, commaIndex).toInt();
+      int angle2 = input.substring(commaIndex + 1).toInt();
+
+      servo1.move(angle1);
+      servo2.move(angle2);
+
+      Serial.print("Servo 1 -> ");
+      Serial.print(angle1);
+      Serial.print("   Servo 2 -> ");
+      Serial.println(angle2);
+    } else {
+      Serial.println("Invalid input! Use format like: 90,45");
     }
 
-    // Move all servos based on received angles
-    moveAllServos(angles);
-    Serial.println("Servos moved to the new angles.");
+    Serial.println("Enter next angles:");
   }
 }
+
+
+
+/* Without LX16Servo.h library
+
+#include <SoftwareSerial.h>
+
+SoftwareSerial servoSerial(10, 11); // RX, TX — Connect only TX (pin 11) to servo signal
+
+const int servoCount = 2;
+const uint8_t servoIDs[] = {1, 2};  // Serial servo IDs
+
+void setup() {
+  Serial.begin(9600);
+  servoSerial.begin(115200);  // Typical for serial servos
+
+  Serial.println("Ready! Enter angles like 90,45");
+}
+
+void loop() {
+  if (Serial.available()) {
+    String input = Serial.readStringUntil('\n');
+    input.trim();
+
+    int commaIndex = input.indexOf(',');
+
+    if (commaIndex != -1) {
+      int angle1 = input.substring(0, commaIndex).toInt();
+      int angle2 = input.substring(commaIndex + 1).toInt();
+
+      moveServo(servoIDs[0], angle1);
+      moveServo(servoIDs[1], angle2);
+
+      Serial.print("Servo ");
+      Serial.print(servoIDs[0]);
+      Serial.print(" -> ");
+      Serial.print(angle1);
+      Serial.print("   Servo ");
+      Serial.print(servoIDs[1]);
+      Serial.print(" -> ");
+      Serial.println(angle2);
+    } else {
+      Serial.println("Invalid input! Use format like: 90,45");
+    }
+
+    Serial.println("Enter next angles:");
+  }
+}
+
+// Send move command to servo with ID and angle (0–240 for most serial servos)
+void moveServo(uint8_t id, uint16_t angle) {
+  // Convert angle (0–240°) to position value (e.g., 0–1000 or 0–1023)
+  uint16_t pos = map(angle, 0, 240, 0, 1000);
+
+  uint8_t packet[10];
+  uint8_t len = 7;          // Length after ID
+  uint8_t cmd = 1;          // CMD for "move"
+  uint8_t time_l = 0x20;    // Movement time (optional, 0x0020 = 32ms)
+  uint8_t time_h = 0x00;
+
+  packet[0] = 0x55;
+  packet[1] = 0x55;
+  packet[2] = id;
+  packet[3] = len;
+  packet[4] = cmd;
+  packet[5] = pos & 0xFF;
+  packet[6] = (pos >> 8) & 0xFF;
+  packet[7] = time_l;
+  packet[8] = time_h;
+
+  // Checksum = ~(ID + LEN + CMD + PARAMS) & 0xFF
+  uint8_t checksum = id + len + cmd + packet[5] + packet[6] + time_l + time_h;
+  packet[9] = ~checksum;
+
+  servoSerial.write(packet, 10);
+}
+
+*/
