@@ -31,4 +31,4 @@ This Arduino sketch allows you to control **two serial servos** (like LX-16A) vi
 ---
 
 Tinkercad simulation uses 2 servos instead of serial servo bus, serial bus servo code is implimented in ./src/sketch.ino  
-[↗️Tinkercad simulation](https://www.tinkercad.com/things/38gMIGXrHpu-serial-servo-control?sharecode=gLhvVtTy-r7HfV7HfKr7NuRwdmaScRgoO-FOjPSLRkw)
+↗️ [Tinkercad simulation](https://www.tinkercad.com/things/38gMIGXrHpu-serial-servo-control?sharecode=gLhvVtTy-r7HfV7HfKr7NuRwdmaScRgoO-FOjPSLRkw)
